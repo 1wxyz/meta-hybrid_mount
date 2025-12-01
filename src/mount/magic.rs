@@ -492,6 +492,8 @@ pub fn mount_partitions(
     disable_umount: bool,
 ) -> Result<()> {
     if let Some(root) = collect_module_files(module_paths, extra_partitions)? {
+        log::debug!("Magic Mount Root:\n{}", root);
+
         let tmp_dir = tmp_path.join("workdir");
         ensure_dir_exists(&tmp_dir)?;
 
