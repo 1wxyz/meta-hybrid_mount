@@ -1,11 +1,14 @@
-## v0.2.8-r10-gb7e6354
+## v0.2.8-r11-g86273c6
 
-Changes since v0.2.8-r9:
-* style(mount): improve node tree debug formatting
-* fix(mount): wrap unsafe uid/gid creation
-* fix(main): implement missing handler for SaveConfig command
-* feat: set magic mount modules mount in-place
-* fix(webui): harden config saving logic for better compatibility
-* fix: restore magic mount logging and harden config saving
-* feat(mount): enforce aggressive tmpfs mirroring and whiteout support
-* [skip ci] Update KernelSU json and changelog for v0.2.8-r9
+Changes since v0.2.8-r10:
+* 	modified:   src/mount/magic.rs
+* 	modified:   src/mount/magic.rs
+* fix(mount): force partition nodes to directory type
+* fix(mount): force root partitions to be directories to prevent system overlay
+* fix(mount): allow tmpfs creation on existing system directories
+* feat(webui):filte bot user in contributors list
+* fix(mount): enforce system-only mount strategy
+* fix(mount): improve root partition promotion logic
+* fix(mount): fix tmpfs creation error on root symlinks
+* fix(mount): update partition scanning logic
+* [skip ci] Update KernelSU json and changelog for v0.2.8-r10
