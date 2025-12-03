@@ -26,3 +26,5 @@ build
 *.njsproj
 *.sln
 *.sw?
+
+/lib/constants_gen.js
