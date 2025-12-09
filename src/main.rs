@@ -91,7 +91,6 @@ fn run() -> Result<()> {
         cli.dry_run,
     );
 
-    // Dry Run Path
     if config.dry_run {
         env_logger::builder()
             .filter_level(if config.verbose { log::LevelFilter::Debug } else { log::LevelFilter::Info })
@@ -174,13 +173,18 @@ fn run() -> Result<()> {
         exec_result.hymo_module_ids.len()
     );
 
+    let storage_stats = storage::get_usage(&storage_handle.mount_point);
+    let hymofs_available = storage::is_hymofs_active();
+
     let state = RuntimeState::new(
         storage_handle.mode,
         storage_handle.mount_point,
         exec_result.overlay_module_ids,
         exec_result.magic_module_ids,
         nuke_active,
-        active_mounts
+        active_mounts,
+        storage_stats,
+        hymofs_available
     );
     
     if let Err(e) = state.save() {

@@ -16,6 +16,14 @@ pub struct RuntimeState {
     pub nuke_active: bool,
     #[serde(default)]
     pub active_mounts: Vec<String>,
+    #[serde(default)]
+    pub storage_total: u64,
+    #[serde(default)]
+    pub storage_used: u64,
+    #[serde(default)]
+    pub storage_percent: u8,
+    #[serde(default)]
+    pub hymofs_available: bool,
 }
 
 impl RuntimeState {
@@ -26,6 +34,8 @@ impl RuntimeState {
         magic_modules: Vec<String>,
         nuke_active: bool,
         active_mounts: Vec<String>,
+        storage_info: (u64, u64, u8),
+        hymofs_available: bool,
     ) -> Self {
         let start = SystemTime::now();
         let timestamp = start.duration_since(UNIX_EPOCH).unwrap_or_default().as_secs();
@@ -40,6 +50,10 @@ impl RuntimeState {
             magic_modules,
             nuke_active,
             active_mounts,
+            storage_total: storage_info.0,
+            storage_used: storage_info.1,
+            storage_percent: storage_info.2,
+            hymofs_available,
         }
     }
 

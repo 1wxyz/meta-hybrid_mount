@@ -30,6 +30,22 @@ struct StorageStatus {
     hymofs_available: bool,
 }
 
+pub fn get_usage(path: &Path) -> (u64, u64, u8) {
+    if let Ok(stat) = rustix::fs::statvfs(path) {
+        let total = stat.f_blocks * stat.f_frsize;
+        let free = stat.f_bfree * stat.f_frsize;
+        let used = total - free;
+        let percent = if total > 0 { (used * 100 / total) as u8 } else { 0 };
+        (total, used, percent)
+    } else {
+        (0, 0, 0)
+    }
+}
+
+pub fn is_hymofs_active() -> bool {
+    HymoFs::is_available()
+}
+
 pub fn setup(mnt_base: &Path, img_path: &Path, force_ext4: bool) -> Result<StorageHandle> {
     if utils::is_mounted(mnt_base) {
         let _ = unmount(mnt_base, UnmountFlags::DETACH);
