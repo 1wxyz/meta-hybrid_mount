@@ -1,8 +1,9 @@
 use std::fs;
+use std::io::Write;
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 use serde::{Deserialize, Serialize};
-use anyhow::{Result, bail};
+use anyhow::{Result, bail, Context};
 use crate::conf::config::Config;
 use crate::defs;
 
@@ -20,6 +21,7 @@ pub struct Silo {
 }
 
 const RATOON_COUNTER_FILE: &str = "/data/adb/meta-hybrid/ratoon_counter";
+const RATOON_RESCUE_NOTICE: &str = "/data/adb/meta-hybrid/rescue_notice";
 const GRANARY_DIR: &str = "/data/adb/meta-hybrid/granary";
 const CONFIG_PATH: &str = "/data/adb/meta-hybrid/config.toml";
 const STATE_PATH: &str = "/data/adb/meta-hybrid/state.json"; 
@@ -34,7 +36,15 @@ pub fn engage_ratoon_protocol() -> Result<()> {
     }
 
     count += 1;
-    fs::write(path, count.to_string())?;
+
+    // Use explicit file operations to ensure persistence against kernel panic
+    {
+        let mut file = fs::File::create(path)
+            .context("Failed to open Ratoon counter for writing")?;
+        write!(file, "{}", count)?;
+        file.sync_all().context("Failed to sync Ratoon counter to disk")?;
+    }
+    
     log::info!(">> Ratoon Protocol: Boot counter at {}", count);
 
     if count >= 3 {
@@ -42,13 +52,21 @@ pub fn engage_ratoon_protocol() -> Result<()> {
         log::warn!(">> Executing emergency rollback from Granary...");
         
         match restore_latest_silo() {
-            Ok(_) => {
+            Ok(silo_id) => {
                 log::info!(">> Rollback successful. Resetting counter.");
-                let _ = fs::remove_file(path); 
+                let _ = fs::remove_file(path);
+                
+                // Write notice for WebUI/User
+                let notice = format!("System recovered from bootloop by restoring snapshot: {}", silo_id);
+                if let Err(e) = fs::write(RATOON_RESCUE_NOTICE, notice) {
+                    log::warn!("Failed to write rescue notice: {}", e);
+                }
             },
             Err(e) => {
                 log::error!(">> Rollback failed: {}. Disabling all modules as last resort.", e);
                 disable_all_modules()?;
+                // Also reset counter to avoid infinite loop of failing restores
+                let _ = fs::remove_file(path);
             }
         }
     }
@@ -156,10 +174,11 @@ pub fn restore_silo(id: &str) -> Result<()> {
     Ok(())
 }
 
-fn restore_latest_silo() -> Result<()> {
+fn restore_latest_silo() -> Result<String> {
     let silos = list_silos()?;
     if let Some(latest) = silos.first() {
-        restore_silo(&latest.id)
+        restore_silo(&latest.id)?;
+        Ok(latest.id.clone())
     } else {
         bail!("No silos found in Granary");
     }

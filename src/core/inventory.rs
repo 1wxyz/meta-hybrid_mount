@@ -33,21 +33,40 @@ impl ModuleRules {
     pub fn load(module_dir: &Path, module_id: &str) -> Self {
         let mut rules = ModuleRules::default();
         let internal_config = module_dir.join("hybrid_rules.json");
-        if let Ok(content) = fs::read_to_string(&internal_config) {
-            if let Ok(r) = serde_json::from_str::<ModuleRules>(&content) {
-                rules = r;
+        
+        if internal_config.exists() {
+            match fs::read_to_string(&internal_config) {
+                Ok(content) => {
+                    match serde_json::from_str::<ModuleRules>(&content) {
+                        Ok(r) => rules = r,
+                        Err(e) => log::warn!("Failed to parse rules for module '{}': {}", module_id, e),
+                    }
+                },
+                Err(e) => log::warn!("Failed to read rule file for '{}': {}", module_id, e),
             }
         }
+
         let user_rules_dir = Path::new("/data/adb/meta-hybrid/rules");
         let user_config = user_rules_dir.join(format!("{}.json", module_id));
-        if let Ok(content) = fs::read_to_string(&user_config) {
-            if let Ok(user_rules) = serde_json::from_str::<ModuleRules>(&content) {
-                rules.default_mode = user_rules.default_mode;
-                rules.paths.extend(user_rules.paths);
+        
+        if user_config.exists() {
+            match fs::read_to_string(&user_config) {
+                Ok(content) => {
+                    match serde_json::from_str::<ModuleRules>(&content) {
+                        Ok(user_rules) => {
+                            rules.default_mode = user_rules.default_mode;
+                            rules.paths.extend(user_rules.paths);
+                        },
+                        Err(e) => log::warn!("Failed to parse user rules for '{}': {}", module_id, e),
+                    }
+                },
+                Err(e) => log::warn!("Failed to read user rule file for '{}': {}", module_id, e),
             }
         }
+        
         rules
     }
+    
     pub fn get_mode(&self, relative_path: &str) -> MountMode {
         if let Some(mode) = self.paths.get(relative_path) {
             return mode.clone();
@@ -79,7 +98,8 @@ pub fn scan(source_dir: &Path, _config: &config::Config) -> Result<Vec<Module>> 
             
             let id = entry.file_name().to_string_lossy().to_string();
             
-            if id == "meta-hybrid" || id == "lost+found" || id == ".git" { 
+            // Centralized ignore list for system directories
+            if matches!(id.as_str(), "meta-hybrid" | "lost+found" | ".git" | ".idea" | ".vscode") { 
                 return None; 
             }
             
