@@ -10,6 +10,7 @@ use fs_extra::dir::{self, CopyOptions};
 use zip::{write::FileOptions, CompressionMethod};
 mod zip_ext;
 use crate::zip_ext::zip_create_from_directory_with_options;
+
 #[derive(Debug, Clone, Copy, ValueEnum)]
 enum Arch {
     #[value(name = "arm64")]
@@ -21,6 +22,7 @@ enum Arch {
     #[value(name = "riscv64")]
     Riscv64,
 }
+
 impl Arch {
     fn target(&self) -> &'static str {
         match self {
@@ -45,12 +47,14 @@ impl Arch {
         }
     }
 }
+
 #[derive(Parser)]
 #[command(name = "xtask")]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
 }
+
 #[derive(Subcommand)]
 enum Commands {
     Build {
@@ -59,7 +63,9 @@ enum Commands {
         #[arg(long)]
         skip_webui: bool,
     },
+    Lint,
 }
+
 fn main() -> Result<()> {
     let cli = Cli::parse();
     let root = project_root();
@@ -67,9 +73,13 @@ fn main() -> Result<()> {
         Commands::Build { release, skip_webui } => {
             build_full(&root, release, skip_webui)?;
         }
+        Commands::Lint => {
+            run_clippy(&root)?;
+        }
     }
     Ok(())
 }
+
 fn project_root() -> PathBuf {
     Path::new(&env!("CARGO_MANIFEST_DIR"))
         .ancestors()
@@ -77,6 +87,33 @@ fn project_root() -> PathBuf {
         .unwrap()
         .to_path_buf()
 }
+
+fn run_clippy(root: &Path) -> Result<()> {
+    println!(":: Running Clippy...");
+    
+    let cargo = env::var("CARGO").unwrap_or_else(|_| "cargo".to_string());
+    
+    let status = Command::new(cargo)
+        .current_dir(root)
+        .args([
+            "clippy",
+            "--workspace",
+            "--all-targets",
+            "--all-features",
+            "--",
+            "-D", "warnings"
+        ])
+        .status()
+        .context("Failed to run cargo clippy")?;
+
+    if !status.success() {
+        anyhow::bail!("Clippy found issues! Please fix them before committing.");
+    }
+    
+    println!(":: Clippy checks passed!");
+    Ok(())
+}
+
 fn build_full(root: &Path, release: bool, skip_webui: bool) -> Result<()> {
     let output_dir = root.join("output");
     let stage_dir = output_dir.join("staging");
@@ -126,6 +163,7 @@ fn build_full(root: &Path, release: bool, skip_webui: bool) -> Result<()> {
     println!(":: Build Complete: {}", zip_file.display());
     Ok(())
 }
+
 fn build_webui(root: &Path, version: &str) -> Result<()> {
     generate_webui_constants(root, version)?;
     let webui_dir = root.join("webui");
@@ -142,6 +180,7 @@ fn build_webui(root: &Path, version: &str) -> Result<()> {
     if !status.success() { anyhow::bail!("npm run build failed"); }
     Ok(())
 }
+
 fn generate_webui_constants(root: &Path, version: &str) -> Result<()> {
     let path = root.join("webui/src/lib/constants_gen.ts");
     let content = format!(r#"
@@ -165,6 +204,7 @@ export const BUILTIN_PARTITIONS = ["system", "vendor", "product", "system_ext", 
     }
     Ok(())
 }
+
 fn compile_core(root: &Path, release: bool, arch: Arch) -> Result<()> {
     let cargo = env::var("CARGO").unwrap_or_else(|_| "cargo".to_string());
     if !matches!(arch, Arch::Riscv64) {
@@ -219,6 +259,7 @@ fn compile_core(root: &Path, release: bool, arch: Arch) -> Result<()> {
     }
     Ok(())
 }
+
 fn get_version(root: &Path) -> Result<String> {
     if let Ok(v) = env::var("META_HYBRID_VERSION") {
         if !v.is_empty() { return Ok(v); }
@@ -242,6 +283,7 @@ fn get_version(root: &Path) -> Result<String> {
     }
     Ok("v0.0.0-unknown".to_string())
 }
+
 fn update_module_prop(path: &Path, version: &str) -> Result<()> {
     if !path.exists() { return Ok(()); }
     let content = fs::read_to_string(path)?;
