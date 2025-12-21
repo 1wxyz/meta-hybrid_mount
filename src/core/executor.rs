@@ -13,7 +13,7 @@ use crate::{
     conf::config,
     core::planner::MountPlan,
     defs,
-    mount::{hymofs::HymoFs, magic_mount, overlay},
+    mount::{hymofs::HymoFs, magic, overlay},
     utils,
 };
 
@@ -371,12 +371,12 @@ pub fn execute(plan: &MountPlan, config: &config::Config) -> Result<ExecutionRes
         }
         utils::mount_tmpfs(&tempdir, "tmpfs")?;
 
-        if let Err(e) = magic_mount::magic_mount(
+        if let Err(e) = magic::mount_partitions(
             &tempdir,
-            &config.moduledir,
+            &magic_queue,
             &config.mountsource,
             &config.partitions,
-            #[cfg(any(target_os = "linux", target_os = "android"))]
+            global_success_map,
             config.disable_umount,
         ) {
             log::error!("Magic Mount critical failure: {:#}", e);
