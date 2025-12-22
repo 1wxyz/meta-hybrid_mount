@@ -4,7 +4,7 @@ use std::{
     sync::atomic::{AtomicBool, Ordering},
 };
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use log::{debug, warn};
 use serde::Serialize;
 
@@ -14,6 +14,7 @@ const HYMO_PROTOCOL_VERSION: i32 = 7;
 
 const HYMO_CMD_ADD_RULE: i32 = 0x48001;
 const HYMO_CMD_DEL_RULE: i32 = 0x48002;
+#[allow(dead_code)]
 const HYMO_CMD_HIDE_RULE: i32 = 0x48003;
 const HYMO_CMD_CLEAR_ALL: i32 = 0x48005;
 const HYMO_CMD_GET_VERSION: i32 = 0x48006;
@@ -23,6 +24,7 @@ const HYMO_CMD_REORDER_MNT_ID: i32 = 0x48009;
 const HYMO_CMD_SET_STEALTH: i32 = 0x48010;
 const HYMO_CMD_HIDE_OVERLAY_XATTRS: i32 = 0x48011;
 const HYMO_CMD_ADD_MERGE_RULE: i32 = 0x48012;
+#[allow(dead_code)]
 const HYMO_CMD_SET_AVC_LOG_SPOOFING: i32 = 0x48013;
 
 static IS_AVAILABLE: AtomicBool = AtomicBool::new(false);
@@ -45,6 +47,7 @@ pub enum HymoFsStatus {
     Available,
     NotPresent,
     KernelTooOld,
+    #[allow(dead_code)]
     ModuleTooOld,
 }
 
@@ -84,13 +87,15 @@ pub struct HymoFs;
 
 impl HymoFs {
     unsafe fn syscall(cmd: i32, arg: *const std::ffi::c_void) -> i32 {
-        libc::syscall(
-            libc::SYS_reboot,
-            HYMO_MAGIC1 as std::ffi::c_int,
-            HYMO_MAGIC2 as std::ffi::c_int,
-            cmd as std::ffi::c_int,
-            arg,
-        ) as i32
+        unsafe {
+            libc::syscall(
+                libc::SYS_reboot,
+                HYMO_MAGIC1 as std::ffi::c_int,
+                HYMO_MAGIC2 as std::ffi::c_int,
+                cmd as std::ffi::c_int,
+                arg,
+            ) as i32
+        }
     }
 
     pub fn check_status() -> HymoFsStatus {
@@ -211,6 +216,7 @@ impl HymoFs {
         }
     }
 
+    #[allow(dead_code)]
     pub fn hide_path(path: &str) -> Result<()> {
         debug!("HymoFS: HIDE_RULE path='{}'", path);
         let c_path = CString::new(path)?;
@@ -400,6 +406,7 @@ impl HymoFs {
         Ok(())
     }
 
+    #[allow(dead_code)]
     pub fn set_avc_log_spoofing(enable: bool) -> Result<()> {
         let val: i32 = if enable { 1 } else { 0 };
         let arg = HymoSyscallArg {
