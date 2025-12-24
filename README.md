@@ -21,11 +21,8 @@ This project features a modern WebUI built with Svelte, offering real-time statu
 
 Meta-Hybrid intelligently selects the best mounting strategy for each module:
 
-1. **HymoFS (Kernel-Level)**: The most advanced mode. It utilizes a custom kernel interface (`/dev/hymo_ctl`) to perform path redirection and file hiding at the kernel level.
-    * **Zero Overhead**: Direct kernel path resolution without the performance cost of traditional mounts.
-    * **Deep Stealth**: Supports hiding overlay extended attributes (xattrs) and specific paths.
-2. **OverlayFS**: Efficient filesystem merging technology that delivers excellent I/O performance.
-3. **Magic Mount**: A reliable fallback mechanism used when other methods are unavailable, ensuring maximum compatibility.
+1. **OverlayFS**: Efficient filesystem merging technology that delivers excellent I/O performance.
+2. **Magic Mount**: A reliable fallback mechanism used when other methods are unavailable, ensuring maximum compatibility.
 
 ### 🛡️ Diagnostics & Safety
 
@@ -49,8 +46,6 @@ The configuration file is located at `/data/adb/meta-hybrid/config.toml`. You ca
 | `moduledir` | string | `/data/adb/modules/` | Directory where modules are installed. |
 | `mountsource` | string | `KSU` | Identify the mount source type. |
 | `partitions` | list | `[]` | Specific partitions to mount (empty = auto-detect). |
-| `hymofs_stealth` | bool | `true` | Enable HymoFS stealth features (hide traces). |
-| `hymofs_debug` | bool | `false` | Enable verbose debug logging for HymoFS. |
 | `enable_nuke` | bool | `false` | Enable aggressive cleanup mode. |
 | `force_ext4` | bool | `false` | Force creation of ext4 images for loop devices. |
 | `disable_umount` | bool | `false` | Disable unmounting (for troubleshooting). |
