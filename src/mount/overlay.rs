@@ -14,7 +14,7 @@ use std::{
 
 use rustix::{
     fd::AsFd,
-    fs::{CWD, XattrFlags, getxattr, setxattr, lgetxattr, lsetxattr},
+    fs::{CWD, XattrFlags, lgetxattr, lsetxattr},
     mount::*,
 };
 
