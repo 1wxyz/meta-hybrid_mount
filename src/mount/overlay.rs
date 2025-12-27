@@ -4,6 +4,7 @@ use std::{
     ffi::CString,
     os::fd::AsRawFd,
     path::{Path, PathBuf},
+    thread,
 };
 
 use procfs::process::Process;
@@ -184,63 +185,88 @@ pub fn mount_overlay(
     upperdir: Option<PathBuf>,
     #[cfg(any(target_os = "linux", target_os = "android"))] disable_umount: bool,
 ) -> Result<()> {
-    info!("mount overlay for {root}");
+    let root_path = root.to_string();
+    let module_roots = module_roots.to_vec();
+    let workdir = workdir.clone();
+    let upperdir = upperdir.clone();
 
-    let root_file = std::fs::File::open(root)
-        .with_context(|| format!("failed to open target root {}", root))?;
-    let stock_root_base = format!("/proc/self/fd/{}", root_file.as_raw_fd());
+    let handle = thread::spawn(move || -> Result<()> {
+        info!("mount overlay for {root_path} (in isolated thread)");
 
-    let mounts = Process::myself()?
-        .mountinfo()
-        .with_context(|| "get mountinfo")?;
-
-    let mut mount_seq = mounts
-        .0
-        .iter()
-        .filter(|m| {
-            let mp = m.mount_point.to_string_lossy();
-            mp.starts_with(root) && mp != root
-        })
-        .map(|m| m.mount_point.to_string_lossy().to_string())
-        .collect::<Vec<_>>();
-
-    mount_seq.sort();
-    mount_seq.dedup();
-
-    mount_overlayfs(
-        module_roots,
-        &stock_root_base,
-        upperdir,
-        workdir,
-        root,
-        #[cfg(any(target_os = "linux", target_os = "android"))]
-        disable_umount,
-    )
-    .with_context(|| "mount overlayfs for root failed")?;
-
-    for mount_point in mount_seq {
-        let relative = mount_point.replacen(root, "", 1);
-        let relative_clean = relative.trim_start_matches('/');
-        let stock_root = format!("{}/{}", stock_root_base, relative_clean);
-
-        if !Path::new(&stock_root).exists() {
-            continue;
+        unsafe {
+            if libc::unshare(libc::CLONE_FS) != 0 {
+                bail!(
+                    "Failed to unshare CLONE_FS: {}",
+                    std::io::Error::last_os_error()
+                );
+            }
         }
 
-        if let Err(e) = mount_overlay_child(
-            &mount_point,
-            relative_clean,
-            module_roots,
-            &stock_root,
+        std::env::set_current_dir(&root_path)
+            .with_context(|| format!("failed to chdir to {root_path}"))?;
+
+        let stock_root_base = ".";
+
+        let root_file = std::fs::File::open(stock_root_base)
+            .with_context(|| format!("failed to open target root {}", root_path))?;
+        let stock_root_fd_path = format!("/proc/self/fd/{}", root_file.as_raw_fd());
+
+        let mounts = Process::myself()?
+            .mountinfo()
+            .with_context(|| "get mountinfo")?;
+
+        let mut mount_seq = mounts
+            .0
+            .iter()
+            .filter(|m| {
+                let mp = m.mount_point.to_string_lossy();
+                mp.starts_with(&root_path) && mp != root_path
+            })
+            .map(|m| m.mount_point.to_string_lossy().to_string())
+            .collect::<Vec<_>>();
+
+        mount_seq.sort();
+        mount_seq.dedup();
+
+        mount_overlayfs(
+            &module_roots,
+            &stock_root_fd_path,
+            upperdir,
+            workdir,
+            &root_path,
             #[cfg(any(target_os = "linux", target_os = "android"))]
             disable_umount,
-        ) {
-            warn!("failed to mount overlay for child {mount_point}: {e:#}, revert");
-            umount_dir(root).with_context(|| format!("failed to revert {root}"))?;
-            bail!(e);
+        )
+        .with_context(|| "mount overlayfs for root failed")?;
+
+        for mount_point in mount_seq {
+            let relative = mount_point.replacen(&root_path, "", 1);
+            let relative_clean = relative.trim_start_matches('/');
+            let stock_root = format!("{}/{}", stock_root_fd_path, relative_clean);
+
+            if !Path::new(&stock_root).exists() {
+                continue;
+            }
+
+            if let Err(e) = mount_overlay_child(
+                &mount_point,
+                relative_clean,
+                &module_roots,
+                &stock_root,
+                #[cfg(any(target_os = "linux", target_os = "android"))]
+                disable_umount,
+            ) {
+                warn!("failed to mount overlay for child {mount_point}: {e:#}, revert");
+                umount_dir(&root_path).with_context(|| format!("failed to revert {root_path}"))?;
+                bail!(e);
+            }
         }
-    }
-    Ok(())
+        Ok(())
+    });
+
+    handle
+        .join()
+        .map_err(|e| anyhow::anyhow!("Worker thread panicked: {:?}", e))?
 }
 
 pub fn umount_dir(src: impl AsRef<Path>) -> Result<()> {
