@@ -196,6 +196,7 @@ fn build_full(
     if let (Some(k), Some(c)) = (signing_key, signing_cert) {
         sign_module(&zip_file, &k, &c)?;
     }
+    println!(":: Build Complete: {}", zip_file.display());
     Ok(())
 }
 
@@ -222,18 +223,26 @@ fn resolve_signing_creds(
 }
 
 fn sign_module(zip_path: &Path, key_path: &Path, cert_path: &Path) -> Result<()> {
+    let output_path = zip_path.with_file_name(format!(
+        "{}-signed.zip",
+        zip_path.file_stem().unwrap_or_default().to_string_lossy()
+    ));
+
     let status = Command::new("ksusig")
         .arg("sign")
-        .arg(zip_path)
         .arg("--key")
         .arg(key_path)
         .arg("--cert")
         .arg(cert_path)
+        .arg(zip_path)
+        .arg(&output_path)
         .status()
         .context("Failed to execute ksusig")?;
+
     if !status.success() {
         anyhow::bail!("ksusig signing failed");
     }
+    fs::rename(&output_path, zip_path)?;
     Ok(())
 }
 
