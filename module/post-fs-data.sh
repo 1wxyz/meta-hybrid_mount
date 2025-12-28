@@ -1,5 +1,3 @@
-export KSU_HAS_METAMODULE="true"
-export KSU_METAMODULE="meta-hybrid"
 BASE_DIR="/data/adb/meta-hybrid"
 BUILTIN_PARTITIONS="system vendor product system_ext odm oem apex"
 
